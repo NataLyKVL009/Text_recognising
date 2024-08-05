@@ -5,6 +5,7 @@ import io
 import re
 import nltk
 from nltk.stem import WordNetLemmatizer
+from pdf2image import convert_from_bytes
 
 
 nltk.download('wordnet')
@@ -45,9 +46,27 @@ class TextTransformer:
 
         return cleaned_text
 
+    #Преобразовываем pdf-сканы
+    def pdf_to_text(self, languages="eng+rus"):
+        # Преобразовать PDF в изображения
+        images = convert_from_bytes(self.file_bytes)
+
+        text = ''
+        for i, image in enumerate(images):
+            # Применить OCR к изображению
+            text += pytesseract.image_to_string(image, lang=languages)
+            text += '\n\n'
+
+        return text
+
     def process_file(self, file_type, languages="eng+rus"):
         if file_type == "application/pdf":
             text = self.extract_text_from_pdf()
+            if not text.strip():  # Если PDF пуст или содержит только изображения, используем OCR
+                text = self.pdf_to_text(languages)
+            else:
+                pdf_images_text = self.pdf_to_text(languages)
+                text += pdf_images_text
         elif file_type.startswith("image/"):
             text = self.extract_text_from_image(languages)
         else:

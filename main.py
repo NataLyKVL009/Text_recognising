@@ -1,11 +1,13 @@
-import fastapi
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form
-
-from fastapi.responses import StreamingResponse
-
 from enum import Enum
-import os
-import Text
+from Text import TextTransformer
+from pydantic import BaseModel, Field
+
+
+class ExtractResponse(BaseModel):
+    file_type: str = Field(..., example='PDF', description="Тип загруженного файла")
+    content: str = Field(..., example='Большой документ', description="Извлечённый текст")
+
 
 app = FastAPI(
     title="Text Extraction API",
@@ -20,23 +22,21 @@ class SupportedLanguages(str, Enum):
     eng_rus = "eng+rus"
 
 
-@app.post("/extract-text", summary="Извлечение текста из файла", tags=["Text Extraction"])
+@app.post("/extract-text", summary="Извлечение текста из файла", tags=["Text Extraction"],
+          response_model=ExtractResponse
+          )
 async def extract_text(
-        file: UploadFile = File(...),
-        languages: SupportedLanguages = Form(SupportedLanguages.eng_rus)
+        file: UploadFile = File(..., description='Файл pdf-формата или изображение с текстом'),
+        languages: SupportedLanguages = Form(SupportedLanguages.eng_rus, description='Язык текта документа')
 
 ):
     content = await file.read()
     file_type = file.content_type
-    pict = Text.TextTransformer(content)
+    pict = TextTransformer(content)
+    text = pict.process_file(file_type, languages)
 
-    if file_type == "application/pdf":
-        text = pict.process_file(file_type)
-        response = {'file_type': 'PDF', 'content': text}
-
-    elif file_type.startswith("image/"):
-        text = pict.process_file(file_type, languages)
-        response = {'file_type': 'IMAGE', 'content': text}
+    if text:
+        response = ExtractResponse(file_type='IMAGE', content=text)
 
     else:
         raise HTTPException(status_code=400, detail="Uploaded file is not an image or PDF")
